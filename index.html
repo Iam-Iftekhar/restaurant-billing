@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Billing POS</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom CSS for a professional look */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .scroll-y-container {
+            max-height: 70vh; /* Limit height for scrolling in the main sections */
+            overflow-y: auto;
+            scrollbar-width: thin; /* Firefox */
+            scrollbar-color: #cbd5e1 #f7f9fb; /* Thumb and Track */
+        }
+        /* Custom scrollbar for Webkit browsers */
+        .scroll-y-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .scroll-y-container::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 10px;
+        }
+        .scroll-y-container::-webkit-scrollbar-track {
+            background-color: #f7f9fb;
+        }
+        .menu-card {
+            transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+        }
+        .menu-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+    <!-- Load Firebase -->
+    <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
+    // TODO: Add SDKs for Firebase products that you want to use
+    // https://firebase.google.com/docs/web/setup#available-libraries
+
+    // Your web app's Firebase configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+        apiKey: "AIzaSyA2u76VE5rr6Dgw92xg1neiEZC2t838rsQ",
+        authDomain: "restaurant-pos-c4d4e.firebaseapp.com",
+        projectId: "restaurant-pos-c4d4e",
+        storageBucket: "restaurant-pos-c4d4e.firebasestorage.app",
+        messagingSenderId: "799360135611",
+        appId: "1:799360135611:web:fad354d59ed527e0dc149e",
+        measurementId: "G-5JMTMM6N38"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    </script>
+</head>
+<body class="p-4 md:p-8">
+
+    <div id="loading-overlay" class="fixed inset-0 bg-white/80 z-50 flex items-center justify-center">
+        <div class="flex items-center space-x-2">
+            <svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-lg font-medium text-gray-700">Initializing POS System...</span>
+        </div>
+    </div>
+
+    <header class="mb-6">
+        <h1 class="text-4xl font-extrabold text-indigo-700">The Gemini Diner</h1>
+        <p class="text-gray-500 mt-1">Simple and reliable billing solution.</p>
+        <div id="user-info" class="text-sm mt-2 p-2 bg-indigo-100 text-indigo-800 rounded-lg flex justify-between items-center">
+            <span>User ID: <span id="user-id-display">Loading...</span></span>
+            <span>Current Token: <span id="current-token-display" class="font-bold">--</span></span>
+        </div>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- 1. Menu Panel -->
+        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">Menu Items</h2>
+            <div id="menu-container" class="grid grid-cols-2 md:grid-cols-3 gap-4 scroll-y-container">
+                <!-- Menu cards will be injected here by JavaScript -->
+            </div>
+        </div>
+
+        <!-- 2. Order/Bill & Past Orders Panel -->
+        <div class="lg:col-span-1 space-y-6">
+
+            <!-- Current Order Panel -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">Current Order</h2>
+
+                <!-- New: Table and Discount Inputs -->
+                <div class="space-y-3 mb-4 p-3 bg-gray-50 rounded-lg">
+                    <div>
+                        <label for="table-no" class="block text-sm font-medium text-gray-700">Table No.</label>
+                        <input type="text" id="table-no" value="1" placeholder="e.g. 1 or A1"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2"
+                               oninput="updateOrderDetails()">
+                    </div>
+                    <div>
+                        <label for="discount-percent" class="block text-sm font-medium text-gray-700">Discount (%)</label>
+                        <input type="number" id="discount-percent" value="0" min="0" max="100"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2"
+                               oninput="updateOrderDetails()">
+                    </div>
+                </div>
+                <!-- End New Inputs -->
+
+                <div id="order-list" class="space-y-3 scroll-y-container max-h-[30vh] lg:max-h-[35vh] mb-4">
+                    <!-- Order items will be injected here -->
+                </div>
+
+                <!-- Totals -->
+                <div id="totals-summary" class="border-t pt-4 space-y-2 text-gray-700">
+                    <!-- Totals summary will be injected here -->
+                </div>
+
+                <!-- Checkout Button -->
+                <button id="checkout-button" onclick="checkout()"
+                    class="mt-6 w-full py-3 bg-green-500 text-white font-bold text-lg rounded-xl shadow-md hover:bg-green-600 transition duration-150 disabled:bg-gray-400"
+                    disabled>
+                    Process Payment & Print Bill
+                </button>
+            </div>
+
+            <!-- Past Orders Panel -->
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">Past Orders (Real-time)</h2>
+                <div id="past-orders-container" class="space-y-3 scroll-y-container max-h-[25vh] lg:max-h-[30vh]">
+                    <p class="text-center text-gray-400">Loading past orders...</p>
+                    <!-- Past orders will be injected here by JavaScript -->
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Modal for Checkout Confirmation/Success (A custom replacement for alert()) -->
+    <div id="message-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
+            <h3 class="text-xl font-bold mb-3 text-indigo-700" id="modal-title"></h3>
+            <p class="text-gray-600 mb-4" id="modal-message"></p>
+            <button onclick="hideModal()" class="w-full py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition">Close</button>
+        </div>
+    </div>
+
+
+    <script type="module">
+        // Ensure Firebase imports are available globally
+        const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, getDoc, addDoc, setDoc, onSnapshot, collection, query, serverTimestamp, setLogLevel, increment } = window.firebase;
+
+        // --- GLOBAL STATE & CONFIG ---
+        const TAX_RATE = 0.08; // 8% tax
+        const TOKEN_COUNTER_PATH = 'utility/tokenCounter'; // Path to the document storing the token count
+        let currentOrder = [];
+        let db, auth;
+        let userId = null;
+        let isAuthReady = false;
+        let appId = 'default-app-id'; // Initial placeholder
+
+        const MENU_ITEMS = [
+            { id: 1, name: 'Gemini Signature Burger', price: 12.99, category: 'Main' },
+            { id: 2, name: 'Crispy Fries', price: 4.50, category: 'Side' },
+            { id: 3, name: 'Soda (Coke/Sprite)', price: 2.00, category: 'Drink' },
+            { id: 4, name: 'Chef Salad', price: 9.99, category: 'Main' },
+            { id: 5, name: 'Espresso', price: 3.50, category: 'Drink' },
+            { id: 6, name: 'Chocolate Cheesecake', price: 6.00, category: 'Dessert' },
+            { id: 7, name: 'Ribeye Steak', price: 29.99, category: 'Main' },
+            { id: 8, name: 'Pesto Pasta', price: 18.50, category: 'Main' },
+            { id: 9, name: 'Water', price: 0.00, category: 'Drink' },
+            { id: 10, name: 'Chicken Wings (6 pcs)', price: 8.99, category: 'Side' },
+        ];
+
+        // --- UTILITY FUNCTIONS ---
+        const formatCurrency = (amount) => `$${amount.toFixed(2)}`;
+
+        const showModal = (title, message) => {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
+            const modal = document.getElementById('message-modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 50);
+        };
+
+        window.hideModal = () => {
+            const modal = document.getElementById('message-modal');
+            const content = document.getElementById('modal-content');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        };
+
+        // --- CORE APPLICATION LOGIC ---
+
+        /**
+         * Reads input fields and triggers UI updates.
+         */
+        window.updateOrderDetails = () => {
+             renderTotals();
+        }
+
+        /**
+         * Adds an item to the current order array.
+         * @param {Object} item The menu item object to add.
+         */
+        window.addItem = (item) => {
+            currentOrder.push(item);
+            renderOrder();
+            renderTotals();
+        };
+
+        /**
+         * Removes an item from the current order by its index.
+         * @param {number} index The index of the item to remove.
+         */
+        window.removeItem = (index) => {
+            currentOrder.splice(index, 1);
+            renderOrder();
+            renderTotals();
+        };
+
+        /**
+         * Calculates and returns the totals object including discount.
+         * @returns {Object} { subtotal, discountPercent, discountAmount, subtotalAfterDiscount, taxAmount, grandTotal }
+         */
+        const calculateTotals = () => {
+            // Get the discount input value, sanitize it
+            const discountPercentInput = document.getElementById('discount-percent');
+            let discountPercent = parseFloat(discountPercentInput.value) || 0;
+            discountPercent = Math.max(0, Math.min(100, discountPercent));
+            discountPercentInput.value = discountPercent; // Ensure the UI reflects the sanitized value
+
+            const subtotal = currentOrder.reduce((sum, item) => sum + item.price, 0);
+
+            const discountAmount = subtotal * (discountPercent / 100);
+            const subtotalAfterDiscount = subtotal - discountAmount;
+
+            const taxAmount = subtotalAfterDiscount * TAX_RATE;
+            const grandTotal = subtotalAfterDiscount + taxAmount;
+
+            return { subtotal, discountPercent, discountAmount, subtotalAfterDiscount, taxAmount, grandTotal };
+        };
+
+        /**
+         * Renders the list of menu items.
+         */
+        const renderMenu = () => {
+            const container = document.getElementById('menu-container');
+            container.innerHTML = MENU_ITEMS.map(item => `
+                <button onclick="addItem(${JSON.stringify(item).replace(/"/g, '&quot;')})"
+                    class="menu-card bg-indigo-50 p-4 rounded-lg text-left shadow-sm hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition duration-150">
+                    <h3 class="font-bold text-indigo-700">${item.name}</h3>
+                    <p class="text-sm text-gray-500">${item.category}</p>
+                    <p class="text-xl font-extrabold text-gray-800 mt-1">${formatCurrency(item.price)}</p>
+                </button>
+            `).join('');
+        };
+
+        /**
+         * Renders the current order list.
+         */
+        const renderOrder = () => {
+            const orderList = document.getElementById('order-list');
+            const checkoutButton = document.getElementById('checkout-button');
+            orderList.innerHTML = currentOrder.map((item, index) => `
+                <div class="flex justify-between items-center p-2 bg-white rounded-lg border border-gray-100">
+                    <div class="flex-grow">
+                        <p class="font-medium text-gray-800">${item.name}</p>
+                        <p class="text-sm text-gray-500">${formatCurrency(item.price)}</p>
+                    </div>
+                    <button onclick="removeItem(${index})"
+                        class="text-red-500 hover:text-red-700 p-1 rounded-full transition">
+                        <!-- Icon: Trash -->
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            `).join('') || '<p class="text-center text-gray-400 p-4 bg-white rounded-lg">Order is empty. Add items from the menu.</p>';
+
+            checkoutButton.disabled = currentOrder.length === 0;
+        };
+
+        /**
+         * Renders the totals summary (Subtotal, Discount, Tax, Total).
+         */
+        const renderTotals = () => {
+            const { subtotal, discountPercent, discountAmount, subtotalAfterDiscount, taxAmount, grandTotal } = calculateTotals();
+            const totalsSummary = document.getElementById('totals-summary');
+            totalsSummary.innerHTML = `
+                <div class="flex justify-between">
+                    <span class="text-sm">Subtotal:</span>
+                    <span class="font-medium">${formatCurrency(subtotal)}</span>
+                </div>
+                <div class="flex justify-between text-red-600 ${discountAmount > 0 ? 'font-bold' : 'text-gray-500'}">
+                    <span class="text-sm">Discount (${discountPercent}%):</span>
+                    <span class="font-medium">-${formatCurrency(discountAmount)}</span>
+                </div>
+                <div class="flex justify-between pt-2 border-t border-dashed border-gray-300">
+                    <span class="text-sm font-semibold">Subtotal (Net):</span>
+                    <span class="font-bold">${formatCurrency(subtotalAfterDiscount)}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-sm">Tax (${(TAX_RATE * 100).toFixed(0)}%):</span>
+                    <span class="font-medium">${formatCurrency(taxAmount)}</span>
+                </div>
+                <div class="flex justify-between pt-2 border-t border-dashed border-gray-300">
+                    <span class="text-lg font-bold text-indigo-700">GRAND TOTAL:</span>
+                    <span class="text-xl font-extrabold text-green-600">${formatCurrency(grandTotal)}</span>
+                </div>
+            `;
+        };
+
+        /**
+         * Fetches, increments, and returns the next Token Number from Firestore.
+         */
+        const getNextTokenNumber = async (appId) => {
+            const counterRef = doc(db, `artifacts/${appId}/public/data/${TOKEN_COUNTER_PATH}`);
+            
+            try {
+                // Get the current token value
+                const docSnap = await getDoc(counterRef);
+                let currentToken = 0;
+                
+                if (docSnap.exists()) {
+                    currentToken = docSnap.data().lastToken || 0;
+                }
+                
+                const nextToken = currentToken + 1;
+                
+                // Increment and save the new token value
+                await setDoc(counterRef, { lastToken: nextToken });
+                
+                return nextToken;
+            } catch (error) {
+                console.error("Error managing token counter:", error);
+                // Fallback: Use a unique ID string if token management fails
+                return `ERROR-${Date.now()}`; 
+            }
+        };
+
+        /**
+         * Saves the current order to Firestore, clears the order, and shows a confirmation.
+         */
+        window.checkout = async () => {
+            if (currentOrder.length === 0) {
+                showModal("Error", "The order is empty. Cannot process an empty bill.");
+                return;
+            }
+
+            // Read order details
+            const tableNo = document.getElementById('table-no').value.trim() || 'N/A';
+            const { subtotal, discountPercent, discountAmount, subtotalAfterDiscount, taxAmount, grandTotal } = calculateTotals();
+
+            // UI state management
+            document.getElementById('checkout-button').textContent = 'Processing...';
+            document.getElementById('checkout-button').disabled = true;
+
+            try {
+                // 1. Get the next auto-incrementing token number
+                const tokenNumber = await getNextTokenNumber(appId);
+                document.getElementById('current-token-display').textContent = tokenNumber;
+
+                // 2. Construct the final order data
+                const orderData = {
+                    tokenNumber: tokenNumber, // New: Unique bill identifier
+                    tableNo: tableNo,         // New: Table number
+                    items: currentOrder,
+                    subtotal: subtotal,
+                    discountPercent: discountPercent,
+                    discountAmount: discountAmount,
+                    subtotalAfterDiscount: subtotalAfterDiscount,
+                    taxAmount: taxAmount,
+                    grandTotal: grandTotal,
+                    timestamp: firebase.serverTimestamp(),
+                    processedBy: userId,
+                };
+
+                // 3. Save the order to the public collection
+                const collectionPath = `artifacts/${appId}/public/data/orders`;
+                await addDoc(collection(db, collectionPath), orderData);
+
+                // 4. Clear the current order and update UI
+                currentOrder = [];
+                document.getElementById('table-no').value = (parseInt(tableNo) + 1) || 1; // Auto-increment table number suggestion
+                document.getElementById('discount-percent').value = 0;
+                renderOrder();
+                renderTotals();
+                showModal("Payment Successful!", `Bill Token #${tokenNumber} processed for Table ${tableNo}. Total charged: ${formatCurrency(grandTotal)}`);
+
+            } catch (error) {
+                console.error("Error processing checkout: ", error);
+                showModal("Error", "Could not process the payment due to a database error. Please check the console.");
+            } finally {
+                document.getElementById('checkout-button').textContent = 'Process Payment & Print Bill';
+                document.getElementById('checkout-button').disabled = currentOrder.length === 0;
+            }
+        };
+
+
+        // --- FIREBASE INITIALIZATION AND REAL-TIME LISTENER ---
+
+        const initializeFirebase = async () => {
+            try {
+                // Firebase Config and App ID
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'; // Set global appId
+
+                // Set Firestore log level for debugging
+                setLogLevel('error');
+
+                // Initialize services
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // Authentication
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Auth state change handler to get the user ID
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('user-id-display').textContent = userId;
+                        isAuthReady = true;
+                        // Start listening to data only once auth is ready
+                        setupRealtimeListener(appId);
+                    } else {
+                        userId = 'N/A (Signed Out)';
+                        document.getElementById('user-id-display').textContent = userId;
+                        isAuthReady = true; // Still ready, but anonymous/signed out
+                    }
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                });
+
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+                document.getElementById('loading-overlay').innerHTML = `<p class="text-red-600">Failed to initialize Firebase: ${error.message}. Check console.</p>`;
+            }
+        };
+
+        /**
+         * Sets up a real-time listener for past orders.
+         * @param {string} appId The application ID for the collection path.
+         */
+        const setupRealtimeListener = (appId) => {
+            if (!db || !isAuthReady) {
+                console.warn("Firestore not ready or auth not complete. Skipping listener setup.");
+                return;
+            }
+
+            const collectionPath = `artifacts/${appId}/public/data/orders`;
+            const ordersQuery = query(collection(db, collectionPath));
+
+            // Set up the real-time listener
+            onSnapshot(ordersQuery, (snapshot) => {
+                const pastOrders = [];
+                snapshot.forEach(doc => {
+                    // Use spread operator for easy merging
+                    const order = { id: doc.id, ...doc.data() };
+                    pastOrders.push(order);
+                });
+                renderPastOrders(pastOrders.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)));
+            }, (error) => {
+                console.error("Error getting real-time orders:", error);
+                document.getElementById('past-orders-container').innerHTML = '<p class="text-red-500">Failed to load past orders.</p>';
+            });
+        };
+
+        /**
+         * Renders the list of past orders.
+         * @param {Array<Object>} orders The list of past order documents.
+         */
+        const renderPastOrders = (orders) => {
+            const container = document.getElementById('past-orders-container');
+
+            if (orders.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-400 p-4">No past orders have been processed yet.</p>';
+                return;
+            }
+
+            container.innerHTML = orders.map(order => {
+                const date = order.timestamp ? new Date(order.timestamp.seconds * 1000).toLocaleString() : 'N/A';
+                return `
+                    <div class="p-3 border-b border-gray-100 bg-green-50 rounded-lg shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <h4 class="font-bold text-green-700">Token #${order.tokenNumber || 'N/A'}</h4>
+                            <span class="text-lg font-extrabold text-green-600">${formatCurrency(order.grandTotal)}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Table: ${order.tableNo || 'N/A'} | Discount: ${order.discountPercent || 0}%
+                        </p>
+                        <p class="text-xs text-gray-500">
+                            ${date} | Processed by: ${order.processedBy ? order.processedBy.substring(0, 8) + '...' : 'Unknown'}
+                        </p>
+                    </div>
+                `;
+            }).join('');
+        };
+
+
+        // --- APP STARTUP ---
+        window.onload = () => {
+            renderMenu();
+            renderOrder();
+            renderTotals();
+            initializeFirebase();
+        };
+
+    </script>
+</body>
+</html>
